@@ -70,7 +70,7 @@ def aggregate_vector_quantities(v_fine, fine_bds, coarse_bds, pyramid ):
     return pop_weight_matrix * v_fine
 
 def build_household_population(
-        composition_list, sus, det, tau, K_home, alpha, gamma):
+        composition_list, sus, det, phi, tau, K_home, alpha, omega, gamma):
     '''This builds internal mixing matrix for entire system of age-structured
     households.'''
 
@@ -90,22 +90,22 @@ def build_household_population(
 
     # This is an array of logicals telling you which classes are present in
     # each composition
-    classes_present = composition_list > 0 
+    classes_present = composition_list > 0
 
     system_sizes = ones(no_types, dtype=int64)
     for i, _ in enumerate(system_sizes):
         for j in where(classes_present[i, :])[0]:
             system_sizes[i] *= binom(
-                composition_list[i, j] + 5 - 1,
-                5 - 1)
+                composition_list[i, j] + 6 - 1,
+                6 - 1)
 
     # This is useful for placing blocks of system states
-    cum_sizes = cumsum(system_sizes) 
+    cum_sizes = cumsum(system_sizes)
     # Total size is sum of the sizes of each composition-system, because we are
     # considering a single household which can be in any one composition
     total_size = cum_sizes[-1]
     # Stores list of (S,E,D,U,R)_a states for each composition
-    states = zeros((total_size, 5 * no_classes), dtype=int64)
+    states = zeros((total_size, 6 * no_classes), dtype=int64)
     which_composition = zeros(total_size, dtype=int64)
 
     # Initialise matrix of internal process by doing the first block
@@ -117,8 +117,8 @@ def build_household_population(
     class_list = where(classes_present[0, :])[0]
     for j in range(len(class_list)):
         this_class = class_list[j]
-        states[:system_sizes[1], 5*this_class:5*(this_class+1)] = \
-            states_temp[:, 5*j:5*(j+1)]
+        states[:system_sizes[1], 6*this_class:6*(this_class+1)] = \
+            states_temp[:, 6*j:6*(j+1)]
 
     # NOTE: The way I do this loop is very wasteful, I'm making lots of arrays
     # which I'm overwriting with different sizes
@@ -131,7 +131,7 @@ def build_household_population(
         which_composition[cum_sizes[i-1]:cum_sizes[i]] = i * ones(
             system_sizes[i], dtype=int64)
         Q_temp, states_temp, inf_temp_row, inf_temp_col = within_household_spread(
-            composition_list[i,:], sus, det, tau, K_home, alpha, gamma)
+            composition_list[i,:], sus, det, phi, tau, K_home, alpha, omega, gamma)
         Q_int = block_diag((Q_int, Q_temp), format='csc')
         Q_int.eliminate_zeros()
         class_list = where(classes_present[i,:])[0]
@@ -149,7 +149,7 @@ def build_household_population(
             this_class = class_list[j]
             states[
                 cum_sizes[i-1]:cum_sizes[i],
-                5*this_class:5*(this_class+1)] = states_temp[:, 5*j:5*(j+1)]
+                6*this_class:6*(this_class+1)] = states_temp[:, 6*j:6*(j+1)]
 
         inf_event_row = concatenate((inf_event_row, cum_sizes[i-1] + inf_temp_row))
         inf_event_col = concatenate((inf_event_col, cum_sizes[i-1] + inf_temp_col))
@@ -162,4 +162,4 @@ def build_household_population(
         system_sizes, \
         cum_sizes, \
         inf_event_row, \
-        inf_event_col 
+        inf_event_col

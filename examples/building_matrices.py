@@ -60,23 +60,28 @@ Q_int, states, which_composition, \
     params['gamma'])
 
 # To define external mixing we need to set up the transmission matrices:
+pro_trans_matrix = params['phi'] * diag(params['sigma']) * params['k_ext']
+
+
 det_trans_matrix = diag(params['sigma']) * params['k_ext'] # Scale rows of contact matrix by
                                        # age-specific susceptibilities
 # Scale columns by asymptomatic reduction in transmission
 undet_trans_matrix = diag(params['sigma']).dot(params['k_ext'].dot(diag(params['tau'])))
 # This stores number in each age class by household
 composition_by_state = composition_list[which_composition,:]
-states_sus_only = states[:,::5] # ::5 gives columns corresponding to
+states_sus_only = states[:,::6] # ::5 gives columns corresponding to
                                 # susceptible cases in each age class in
                                 # each state
 s_present = where(states_sus_only.sum(axis=1) > 0)[0]
 
 # Our starting state H is the composition distribution with a small amount of
 # infection present:
-states_det_only = states[:,2::5] # 2::5 gives columns corresponding to
+states_pro_only = states[:,2::6]
+
+states_det_only = states[:,3::6] # 2::5 gives columns corresponding to
                                  # detected cases in each age class in each
                                  # state
-states_undet_only = states[:,3::5] # 4:5:end gives columns corresponding to
+states_undet_only = states[:,4:6] # 4:5:end gives columns corresponding to
                                    # undetected cases in each age class in
                                    # each state
 fully_sus = where(states_sus_only.sum(axis=1) == states.sum(axis=1))[0]
@@ -88,20 +93,23 @@ H[i_is_one] = (1e-5) * comp_dist[which_composition[i_is_one]]
 H[fully_sus] = (1 - 1e-5 * sum(comp_dist[which_composition[i_is_one]])) * comp_dist
 
 # Calculate force of infection on each state
-FOI_det,FOI_undet = get_FOI_by_class(
+FOI_pro, FOI_det,FOI_undet = get_FOI_by_class(
     H,
     composition_by_state,
     states_sus_only,
+    states_pro_only,
     states_det_only,
     states_undet_only,
+    pro_trans_matrix,
     det_trans_matrix,
     undet_trans_matrix)
 # Now calculate the external infection components of the transmission
 # matrix:
-Q_ext_det, Q_ext_undet = build_external_import_matrix(
+Q_ext_pro, Q_ext_det, Q_ext_undet = build_external_import_matrix(
     states,
     inf_event_row,
     inf_event_col,
+    FOI_pro,
     FOI_det,
     FOI_undet,
     len(which_composition))
